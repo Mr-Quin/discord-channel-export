@@ -15,7 +15,8 @@ and the only automated action is scrolling.
 | 5 | Configuration | Options page: scroll speed, caps, filename template, default format, HTML theme, storage management. |
 | 6 | Storage and scope | IndexedDB per channel, deduped by message id, survives reloads. Export all or a date/count range. |
 | 7 | Licence and repo | MIT, public, `discord-channel-export`. |
-| 8 | Stack and tests | WXT + React + TypeScript, pnpm, Vitest for pure logic, manual protocol on real channels. |
+| 8 | Stack and tests | WXT + React + TypeScript, pnpm, Vitest for pure logic, Playwright end-to-end against a local harness and against real Discord. |
+| 9 | Model | Generic source, driver and output. Discord is the first source; more can follow without touching the driver or outputs. |
 
 ## What it does
 
@@ -28,23 +29,55 @@ and the only automated action is scrolling.
 - Exports a channel as raw JSON (the exact Discord API message objects,
   oldest first), a self-contained HTML page that renders the chat, or CSV.
 
+## Model
+
+Three parts, each replaceable on its own.
+
+- **Source**: everything specific to one site. Which URLs it owns, how to
+  read the current conversation (id, name, container) from the page, which
+  network responses carry messages and how to parse them, how to find the
+  scroller and ask the page for older messages, and how to normalise a raw
+  message into the common model. Discord is the only source for now.
+- **Driver**: the site-agnostic loop. Takes batches from the source's
+  capture, stores them, and drives the source's scroller until a rule says
+  stop. Rules today: until a date, until a count, until the start, until the
+  newest id of the previous export. Filters (by author, by keyword, by time
+  window) plug into the same place later.
+- **Output**: a serialiser from stored messages to a file. JSON keeps the raw
+  objects untouched; HTML and CSV work from the common model with the raw
+  object available for source-specific rendering.
+
+Common model:
+
+```ts
+type Message = {
+  id: string            // sortable within a conversation
+  sortKey: string       // fixed-width, orders by time
+  timestamp: string     // ISO 8601
+  author: { id: string; name: string; displayName?: string; avatarUrl?: string }
+  content: string
+  attachments: { id: string; name: string; size?: number; url: string; contentType?: string }[]
+  raw: unknown          // the source's original object
+}
+type Conversation = { source: string; id: string; name?: string; groupId?: string; groupName?: string; url: string }
+```
+
 ## Architecture
 
 ```
-discord.com tab
+site tab (matches every registered source's URL patterns)
   MAIN world content script (document_start)
-    wraps window.fetch and XMLHttpRequest
-    matches GET /api/v*/channels/<id>/messages
-    window.postMessage({ source, type: "batch", channelId, limit, messages })
+    wraps window.fetch and XMLHttpRequest once
+    each source contributes a matcher: (method, url) -> parser | null
+    window.postMessage({ source, type: "batch", conversationId, batch })
   ISOLATED world content script
-    receives batches, forwards to background
-    mounts the panel (React in a shadow root)
-    drives auto-scroll, tracks the current channel from the URL
+    picks the source for the current URL
+    forwards batches to background, mounts the panel, runs the driver
 background service worker
-    IndexedDB: messages keyed [channelId, paddedId], channel metadata
-    answers stats queries, assembles exports
+    IndexedDB: messages keyed [source, conversationId, sortKey], conversation metadata
+    answers stats queries, runs outputs
 offscreen document
-    turns export text into a Blob and calls downloads.download
+    turns output text into a Blob and calls downloads.download
 popup, options
     status, settings, storage management
 ```
@@ -52,9 +85,9 @@ popup, options
 ### Capture
 
 Both `fetch` and `XMLHttpRequest` are wrapped at `document_start`, before the
-client makes its first request. Only GET responses whose URL matches
-`/api/v\d+/channels/(\d+)/messages` and whose body is a JSON array are
-forwarded. The query string's `limit` (default 50) travels with the batch: a
+client makes its first request. The Discord source's matcher accepts GET
+responses whose URL matches `/api/v\d+/channels/(\d+)/messages` and whose
+body is a JSON array; those batches are forwarded. The query string's `limit` (default 50) travels with the batch: a
 batch shorter than its limit means the client hit the start of the channel
 (only meaningful for `before` requests, so `after` and `around` batches never
 set that flag).
@@ -67,21 +100,23 @@ reload; it knows because the MAIN world script answers a handshake.
 
 IndexedDB in the extension origin, owned by the background worker.
 
-- `messages`: key `[channelId, paddedId]`, value the raw message object.
-  `paddedId` is the snowflake zero-padded to 20 digits so string keys order
-  like the numbers do.
-- `channels`: key `channelId`, value `{ guildId, name, guildName, count,
-  oldest, newest, newestExported, updatedAt }`.
+- `messages`: key `[source, conversationId, sortKey]`, value the common
+  model with `raw` inside. For Discord `sortKey` is the snowflake zero-padded
+  to 20 digits so string keys order like the numbers do.
+- `conversations`: key `[source, conversationId]`, value the conversation
+  plus `{ count, oldest, newest, newestExported, updatedAt }`.
 
 Counts, oldest and newest come from the store itself (a bounded key range
 and a cursor from each end), so metadata never drifts from the data.
 
-### Scroll driver
+### Driver
 
-Ported from a proven Playwright exporter. The list is
-`[data-list-id="chat-messages"]`; the scroller is its nearest ancestor whose
-`scrollHeight` exceeds `clientHeight`. Each round moves `scrollTop` up by a
-randomised amount in a few animation frames, then waits for a new batch.
+The loop is generic; the Discord source supplies `findScroller()` and
+`loadOlder()`. For Discord the list is `[data-list-id="chat-messages"]`, the
+scroller its nearest ancestor whose `scrollHeight` exceeds `clientHeight`,
+and loading older means moving `scrollTop` up by a randomised amount over a
+few animation frames. Each round calls `loadOlder()` and waits for a new
+batch.
 
 Stop conditions, checked before every round:
 
@@ -89,9 +124,9 @@ Stop conditions, checked before every round:
   snowflake, or the newest id from the previous export)
 - reached the start of the channel (a short batch)
 - message cap reached
-- nothing new loaded for N rounds, counted only while `scrollTop` is 0,
-  because moving up through posts already rendered loads nothing and must
-  not count as idle
+- nothing new loaded for N rounds, counted only while the source reports
+  `atTop()`, because moving up through posts already rendered loads nothing
+  and must not count as idle
 - the user pressed stop, or navigated to another channel
 
 Speed presets set the pause range between rounds: slow 1.5 to 3 s, normal
@@ -142,28 +177,55 @@ default format, default range, HTML theme, panel collapsed.
 ## Repository layout
 
 ```
+src/core/          model, driver loop and rules, store, protocol, settings
+src/sources/       one folder per site; discord/ is the first
+  discord/         matcher and parser for the hook, page adapter, normaliser
+src/outputs/       json, html, csv, filename template
 src/entrypoints/
   background.ts
-  discord-main.content.ts     MAIN world hook
-  discord.content/            ISOLATED world: panel, scroll driver
-  offscreen/                  blob download
+  main-world.content.ts     hook, composed from every source's matcher
+  page.content/             ISOLATED world: panel, driver
+  offscreen/                blob download
   popup/
   options/
-src/lib/                      pure logic, unit tested
-  capture.ts snowflake.ts db.ts scroller.ts protocol.ts settings.ts
-  export/{json,csv,html,filename}.ts
-tests/
+src/components/    panel and options UI
+e2e/               Playwright: local harness and real-site specs
 docs/design.md
 ```
+
+## Test infrastructure
+
+Everything below runs from the repository without a human in the loop.
+
+- **Unit** (Vitest): pure modules under `src/core`, `src/sources`,
+  `src/outputs`.
+- **Harness end-to-end** (Playwright, Chromium with the built extension
+  loaded): `e2e/harness` serves a small page that imitates the Discord
+  channel view: the same list element, a scroller that requests
+  `/api/v9/channels/<id>/messages?before=&limit=` from the harness server as
+  it nears the top, and a fake message set with a known size. Test builds
+  add the harness origin to the content script matches through
+  `DCE_EXTRA_MATCHES`. The specs drive the panel: hook handshake, capture on
+  load, load older to a date, to a count, to the start, stop button, export
+  in each format (the download is read back and checked), persistence across
+  reload, and channel switch mid-run.
+- **Real-site end-to-end**: the same specs, minus the deterministic size
+  checks, against real Discord in a persistent Chromium profile that holds a
+  logged-in session. `pnpm e2e:login` opens the profile for a one-time
+  login. `DCE_PROFILE` (default
+  `~/.local/share/discord-channel-export/profile`) and `DCE_E2E_CHANNEL`
+  select the profile and channel; the specs skip when they are unset. The
+  profile is a logged-in session and never enters the repository.
 
 ## Testing
 
 Unit (Vitest): URL matching and query parsing, batch dedupe and short-batch
-detection, stop reasons, snowflake conversions, padded keys, filename
+detection, stop rules, snowflake conversions, sort keys, filename
 template and sanitising, CSV quoting, HTML escaping and the `</script`
 embed, markdown subset.
 
-Manual, on real channels, each slice:
+End-to-end, against the harness on every change and against a real
+channel before each release:
 
 1. Load unpacked, open a channel, confirm the panel mounts and the handshake
    passes; reload if it reports the hook missing.
