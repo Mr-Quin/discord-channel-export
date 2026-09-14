@@ -33,6 +33,7 @@ const batch = (oldest: number, length = 50, reachedStart = false): BatchEvent =>
   conversationId: "c",
   length,
   reachedStart,
+  oldestKey: key(oldest),
   stats: stats(key(oldest)),
 });
 
@@ -93,10 +94,11 @@ describe("runDriver", () => {
     ).resolves.toBe("noScroller");
   });
 
-  it("does not report a date target already satisfied by what the store holds", async () => {
-    const { deps } = fakeDeps([]);
+  it("targets a date only after a loaded batch reaches the floor, not from stored history", async () => {
+    // Batches never reach the floor, so a run must not stop at "target" just because older
+    // messages from a previous export already sit in storage below the floor.
+    const { deps } = fakeDeps([batch(900), batch(800)]);
     const rule = { kind: "date", floorKey: key(500), iso: "" } as const;
-    const options = { ...base, rule, initial: { oldestKey: key(100), reachedStart: false } };
-    await expect(runDriver(options, deps, ctl().signal)).resolves.toBe("target");
+    await expect(runDriver({ ...base, rule }, deps, ctl().signal)).resolves.toBe("idle");
   });
 });

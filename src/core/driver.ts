@@ -13,6 +13,9 @@ export type BatchEvent = {
   conversationId: string;
   length: number;
   reachedStart: boolean;
+  // The oldest id in this batch, the frontier the client has paginated back to. This is
+  // not the same as the oldest id in storage, which may include an older disjoint run.
+  oldestKey?: string;
   stats: StoredConversation;
 };
 
@@ -33,7 +36,7 @@ export type DriverOptions = {
   rule: Rule;
   speed: Speed;
   idleRounds: number;
-  initial: { oldestKey?: string; reachedStart: boolean };
+  initial: { reachedStart: boolean };
   batchTimeoutMs?: number;
 };
 
@@ -62,9 +65,11 @@ export async function runDriver(
   signal: AbortSignal,
 ): Promise<StopReason> {
   const random = deps.random ?? Math.random;
+  // oldestKey stays undefined until a batch loads this run. A date or since-export target
+  // is only declared once a loaded batch actually reaches the floor, so a disjoint older
+  // run already in storage cannot make the run stop before the gap above it is filled.
   const state: DriveState = {
     loaded: 0,
-    oldestKey: options.initial.oldestKey,
     reachedStart: options.initial.reachedStart,
     idleRounds: 0,
   };
@@ -86,7 +91,9 @@ export async function runDriver(
     if (signal.aborted) return "stopped";
     if (batch) {
       state.loaded += batch.length;
-      state.oldestKey = batch.stats.oldest?.sortKey;
+      if (batch.oldestKey && (state.oldestKey === undefined || batch.oldestKey < state.oldestKey)) {
+        state.oldestKey = batch.oldestKey;
+      }
       if (batch.reachedStart) state.reachedStart = true;
       state.idleRounds = 0;
     } else if (deps.page.atTop(scroller)) {

@@ -39,6 +39,12 @@ export type PanelState = {
 type Listener = () => void;
 type BatchWaiter = { conversationId: string; resolve: (b: BatchEvent) => void };
 
+function minKey(a: string | undefined, b: string | undefined): string | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return a < b ? a : b;
+}
+
 export class Controller {
   private state: PanelState = { hook: "unknown", settings: DEFAULT_SETTINGS };
   private listeners = new Set<Listener>();
@@ -87,9 +93,18 @@ export class Controller {
 
   private async onBatch(batch: CaptureBatch): Promise<void> {
     if (batch.sourceId !== this.source.id) return;
-    const messages = batch.raw
-      .map((raw) => this.source.normalize(raw, batch.request))
-      .filter((m): m is Message => m !== null);
+    const messages: Message[] = [];
+    for (const raw of batch.raw) {
+      try {
+        const m = this.source.normalize(raw, batch.request);
+        if (m) messages.push(m);
+      } catch {
+        // A malformed message must not take down the capture listener.
+      }
+    }
+    let oldestKey: string | undefined;
+    for (const m of messages)
+      if (oldestKey === undefined || m.sortKey < oldestKey) oldestKey = m.sortKey;
     const current = this.state.conversation;
     const conversation: Conversation =
       current && current.id === batch.request.conversationId
@@ -110,6 +125,7 @@ export class Controller {
       conversationId: conversation.id,
       length: batch.raw.length,
       reachedStart: short,
+      oldestKey,
       stats: reply.stats,
     };
     let taken = false;
@@ -126,6 +142,7 @@ export class Controller {
         ...event,
         length: event.length + (held?.length ?? 0),
         reachedStart: event.reachedStart || (held?.reachedStart ?? false),
+        oldestKey: minKey(event.oldestKey, held?.oldestKey),
       });
     }
   }
@@ -208,46 +225,58 @@ export class Controller {
       signal.addEventListener("abort", done);
     });
 
+  private runSeq = 0;
+  private stoppedAs?: StopReason;
+
   async run(rule: Rule): Promise<void> {
     const c = this.state.conversation;
     if (!c || this.abort) return;
     const abort = new AbortController();
     this.abort = abort;
+    // A later run owns the panel state. An earlier run that finishes after being stopped
+    // and replaced must not clear the new run's progress, so updates are keyed by seq.
+    const seq = ++this.runSeq;
+    this.stoppedAs = undefined;
     this.unseen.delete(c.id);
-    const initial = {
-      oldestKey: this.state.stats?.oldest?.sortKey,
-      reachedStart: this.sessionStart.has(c.id),
-    };
     this.set({
-      running: { rule, progress: { loaded: 0, idleRounds: 0, ...initial } },
+      running: {
+        rule,
+        progress: { loaded: 0, idleRounds: 0, reachedStart: this.sessionStart.has(c.id) },
+      },
       lastStop: undefined,
       error: undefined,
     });
-    const reason = await runDriver(
-      {
-        conversationId: c.id,
-        rule,
-        speed: this.state.settings.speed,
-        idleRounds: this.state.settings.idleRounds,
-        initial,
-      },
-      {
-        page: this.source.page,
-        waitForBatch: this.waitForBatch,
-        sleep: this.sleep,
-        onProgress: (progress) => {
-          if (this.state.running) this.set({ running: { ...this.state.running, progress } });
+    let reason: StopReason = "stopped";
+    try {
+      reason = await runDriver(
+        {
+          conversationId: c.id,
+          rule,
+          speed: this.state.settings.speed,
+          idleRounds: this.state.settings.idleRounds,
+          initial: { reachedStart: this.sessionStart.has(c.id) },
         },
-      },
-      abort.signal,
-    );
-    if (this.abort === abort) this.abort = undefined;
-    const loaded = this.state.running?.progress.loaded ?? 0;
-    this.set({ running: undefined, lastStop: { reason: this.stoppedAs ?? reason, loaded } });
-    this.stoppedAs = undefined;
+        {
+          page: this.source.page,
+          waitForBatch: this.waitForBatch,
+          sleep: this.sleep,
+          onProgress: (progress) => {
+            if (this.runSeq === seq && this.state.running) {
+              this.set({ running: { ...this.state.running, progress } });
+            }
+          },
+        },
+        abort.signal,
+      );
+    } finally {
+      if (this.abort === abort) this.abort = undefined;
+      if (this.runSeq === seq) {
+        const loaded = this.state.running?.progress.loaded ?? 0;
+        this.set({ running: undefined, lastStop: { reason: this.stoppedAs ?? reason, loaded } });
+        this.stoppedAs = undefined;
+      }
+    }
   }
-
-  private stoppedAs?: StopReason;
 
   stop(reason: StopReason = "stopped"): void {
     if (!this.abort) return;
