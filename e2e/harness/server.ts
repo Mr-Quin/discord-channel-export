@@ -35,11 +35,13 @@ export function messageAt(channelId: string, n: number) {
     edited_timestamp: n % 17 === 0 ? new Date(ms + 60000).toISOString() : null,
     content:
       n % 5 === 0
-        ? `message ${n} with **bold** and \`code\` <@1002> https://example.com/${n}`
+        ? `message ${n} with **bold** and \`code\` and ||secret|| <@1002> https://example.com/${n}`
         : `message ${n}`,
     author,
     mentions: n % 5 === 0 ? [AUTHORS[1]] : [],
     mention_roles: [],
+    referenced_message:
+      n % 13 === 1 ? { content: `parent of ${n}`, author: AUTHORS[0] } : undefined,
     attachments:
       n % 7 === 0
         ? [

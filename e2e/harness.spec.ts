@@ -126,6 +126,14 @@ test("exports JSON, HTML and CSV and remembers the last export", async ({ ext })
   await expect(viewer.locator(".msg")).toHaveCount(120);
   await expect(viewer.locator("#count")).toHaveText("120 messages");
   await expect(viewer.locator(".mention").first()).toHaveText("@Bob");
+  await expect(viewer.locator(".content b").first()).toHaveText("bold");
+  await expect(viewer.locator(".content code").first()).toHaveText("code");
+  await expect(viewer.locator(".spoiler").first()).toHaveText("secret");
+  await expect(viewer.locator(".reply").first()).toContainText("Alice");
+  await expect(viewer.locator(".reactions").first()).toBeVisible();
+  await viewer.locator("#search").fill("message 42");
+  await expect(viewer.locator(".msg:not(.hidden)")).toHaveCount(1);
+  await expect(viewer.locator("#count")).toHaveText("1 of 120");
   await viewer.close();
 
   before = await lastDownloadId(ext.worker);
