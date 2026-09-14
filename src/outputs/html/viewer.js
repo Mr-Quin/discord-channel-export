@@ -107,9 +107,9 @@
     // A bare link preview of a picture or clip is shown as the media itself, not a card.
     var bare = !e.title && !e.description && !e.provider?.name;
     if (bare && e.type === "image" && img?.url)
-      return `<div class="embed media"><a href="${esc(img.url)}" target="_blank" rel="noreferrer"><img src="${esc(img.proxy_url || img.url)}" alt="" loading="lazy"></a></div>`;
+      return `<div class="embed media"><a href="${esc(img.url)}" target="_blank" rel="noreferrer"><img src="${esc(img.url || img.proxy_url)}" alt="" loading="lazy"></a></div>`;
     if (bare && (e.type === "video" || e.type === "gifv") && e.video?.url)
-      return `<div class="embed media"><video src="${esc(e.video.proxy_url || e.video.url)}" controls preload="metadata"></video></div>`;
+      return `<div class="embed media"><video src="${esc(e.video.url || e.video.proxy_url)}" controls preload="metadata"></video></div>`;
     var out = '<div class="embed">';
     if (e.provider?.name) out += `<div class="provider">${esc(e.provider.name)}</div>`;
     if (e.title)
@@ -118,7 +118,7 @@
     if (e.type === "video" && e.video && e.video.url)
       out += `<video src="${esc(e.video.url)}" controls preload="metadata"></video>`;
     else if (img?.url)
-      out += `<a href="${esc(img.url)}" target="_blank" rel="noreferrer"><img src="${esc(img.proxy_url || img.url)}" alt="" loading="lazy"></a>`;
+      out += `<a href="${esc(img.url)}" target="_blank" rel="noreferrer"><img src="${esc(img.url || img.proxy_url)}" alt="" loading="lazy"></a>`;
     out += "</div>";
     return out;
   }

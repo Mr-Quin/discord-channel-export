@@ -47,7 +47,7 @@ export async function download(text: string, filename: string, mime: string): Pr
     if (delta.id !== downloadId || !delta.state) return;
     if (delta.state.current === "complete" || delta.state.current === "interrupted") {
       chrome.downloads.onChanged.removeListener(onChanged);
-      void chrome.runtime.sendMessage({ type: "download-release", url });
+      chrome.runtime.sendMessage({ type: "download-release", url }).catch(() => {});
     }
   };
   chrome.downloads.onChanged.addListener(onChanged);

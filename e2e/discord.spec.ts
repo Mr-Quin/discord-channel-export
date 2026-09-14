@@ -19,7 +19,7 @@ test.skip(!CHANNEL || !existsSync(PROFILE_DIR), "needs DCE_E2E_CHANNEL and a log
 test("captures, loads older, and exports a real channel", async () => {
   test.setTimeout(300_000);
   const downloadsDir = await mkdtemp(join(tmpdir(), "dce-downloads-"));
-  const ext = await launchWithExtension(PROFILE_DIR, downloadsDir);
+  const ext = await launchWithExtension(PROFILE_DIR, downloadsDir, true);
   try {
     const page = ext.context.pages()[0] ?? (await ext.context.newPage());
     await page.goto(CHANNEL as string, { waitUntil: "domcontentloaded" });

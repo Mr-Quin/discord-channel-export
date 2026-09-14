@@ -5,29 +5,21 @@
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium, type Locator, type Page } from "@playwright/test";
+import { type Locator, type Page } from "@playwright/test";
+import { launchWithExtension } from "./fixtures.ts";
 
 const [channel, mode = "start", value = "", out = "e2e/.real"] = process.argv.slice(2);
 if (!channel) {
   console.error("usage: node e2e/real-run.ts <channel url> [mode] [value] [out dir]");
   process.exit(1);
 }
-const extension = join(process.cwd(), ".output", "chrome-mv3-test");
 const profile =
   process.env.DCE_PROFILE ??
   join(homedir(), ".local", "share", "discord-channel-export", "profile");
 const downloadsDir = mkdtempSync(join(tmpdir(), "dce-real-"));
 mkdirSync(out, { recursive: true });
 
-const context = await chromium.launchPersistentContext(profile, {
-  channel: "chromium",
-  headless: process.env.DCE_HEADED !== "1",
-  viewport: { width: 1280, height: 900 },
-  acceptDownloads: true,
-  downloadsPath: downloadsDir,
-  args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-});
-const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+const { context, worker } = await launchWithExtension(profile, downloadsDir, true);
 const page = context.pages()[0] ?? (await context.newPage());
 page.on("pageerror", (e) => console.log("pageerror:", e.message));
 page.on("console", (m) => {

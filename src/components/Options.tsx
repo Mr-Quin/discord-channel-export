@@ -22,11 +22,10 @@ export function Options() {
   const exportRow = async (row: StoredConversation, output: OutputId) => {
     setError(undefined);
     try {
-      const reply = await send<ExportReply | { error: string }>({
+      const reply = await send<ExportReply>({
         type: "export",
         request: { conversation: row, output, range: { kind: "all" } },
       });
-      if ("error" in reply) throw new Error(reply.error);
       setNote(`${reply.count} messages written to ${reply.filename}`);
       await refresh();
     } catch (err) {

@@ -20,7 +20,13 @@ export type Extension = {
 export async function launchWithExtension(
   userDataDir: string,
   downloadsDir: string,
+  reused = false,
 ): Promise<Extension> {
+  // A reused profile keeps the service worker registered from an earlier build, and
+  // Chromium serves that stored script instead of the rebuilt one on disk. Dropping the
+  // registration makes it register the current extension fresh; cookies are elsewhere.
+  if (reused)
+    await rm(join(userDataDir, "Default", "Service Worker"), { recursive: true, force: true });
   const context = await chromium.launchPersistentContext(userDataDir, {
     channel: "chromium",
     headless: process.env.DCE_HEADED !== "1",
