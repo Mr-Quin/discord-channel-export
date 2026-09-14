@@ -28,6 +28,10 @@ export type Request =
 export type StoreReply = { added: number; stats: StoredConversation };
 export type ExportReply = { filename: string; count: number };
 
-export function send<T>(request: Request): Promise<T> {
-  return chrome.runtime.sendMessage(request) as Promise<T>;
+export async function send<T>(request: Request): Promise<T> {
+  const reply = (await chrome.runtime.sendMessage(request)) as T | { error: string };
+  if (reply && typeof reply === "object" && "error" in reply && typeof reply.error === "string") {
+    throw new Error(reply.error);
+  }
+  return reply as T;
 }

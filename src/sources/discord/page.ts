@@ -1,18 +1,20 @@
 import type { Conversation } from "../../core/model";
 import type { PageAdapter } from "../types";
 
-const CHANNEL_URL = /^https?:\/\/(?:[\w-]+\.)?discord\.com\/channels\/(@me|\d+)\/(\d+)/;
+// Host is not checked here; the source's match patterns decide which pages it runs on,
+// and the test harness serves the same paths from a local origin.
+const CHANNEL_URL = /^(https?:\/\/[^/]+)\/channels\/(@me|\d+)\/(\d+)/;
 
 export function conversationFromPage(url: string, title: string): Conversation | null {
   const m = CHANNEL_URL.exec(url);
-  if (!m?.[1] || !m[2]) return null;
+  if (!m?.[1] || !m[2] || !m[3]) return null;
   const { name, groupName } = parseTitle(title);
   return {
     source: "discord",
-    id: m[2],
-    url: `https://discord.com/channels/${m[1]}/${m[2]}`,
+    id: m[3],
+    url: `${m[1]}/channels/${m[2]}/${m[3]}`,
     name,
-    groupId: m[1] === "@me" ? undefined : m[1],
+    groupId: m[2] === "@me" ? undefined : m[2],
     groupName,
   };
 }

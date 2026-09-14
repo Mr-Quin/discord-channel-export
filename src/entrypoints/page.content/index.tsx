@@ -1,6 +1,6 @@
 import ReactDOM from "react-dom/client";
 import { Panel } from "../../components/Panel";
-import { contentMatches } from "../../core/matches";
+import { contentMatches, extraMatches } from "../../core/matches";
 import { Controller } from "../../page/controller";
 import { sourceFor } from "../../sources";
 import "./panel.css";
@@ -10,7 +10,7 @@ export default defineContentScript({
   runAt: "document_idle",
   cssInjectionMode: "ui",
   async main(ctx) {
-    const source = sourceFor(location.href);
+    const source = sourceFor(location.href, extraMatches());
     if (!source) return;
     const controller = new Controller(source);
     await controller.init();

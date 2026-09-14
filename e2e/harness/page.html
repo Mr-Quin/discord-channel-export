@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Discord | #harness | Harness Server</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #313338;
+        color: #dbdee1;
+        font-family: sans-serif;
+      }
+      #app {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      nav {
+        padding: 8px;
+        background: #2b2d31;
+      }
+      nav a {
+        color: #00a8fc;
+        margin-right: 12px;
+      }
+      #scroller {
+        flex: 1;
+        overflow-y: auto;
+      }
+      .item {
+        padding: 6px 16px;
+        border-bottom: 1px solid #3f4147;
+        min-height: 40px;
+      }
+      #spinner {
+        padding: 12px;
+        text-align: center;
+        color: #949ba4;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <nav>
+        <a href="/channels/1/120" data-nav>#small</a>
+        <a href="/channels/1/300" data-nav>#medium</a>
+        <a href="/channels/1/2000" data-nav>#large</a>
+        <span id="status"></span>
+      </nav>
+      <div id="scroller">
+        <div id="spinner" hidden>loading older…</div>
+        <ol data-list-id="chat-messages" id="list"></ol>
+      </div>
+    </div>
+    <script src="/page.js"></script>
+  </body>
+</html>

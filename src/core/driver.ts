@@ -39,6 +39,21 @@ export type DriverOptions = {
 
 export const STEP_PX: [number, number] = [1800, 3200];
 
+// The list can be briefly absent or too short to scroll while the client re-renders,
+// so a missing scroller is retried for a moment before the run gives up.
+const SCROLLER_TRIES = 10;
+const SCROLLER_RETRY_MS = 300;
+
+async function findScroller(deps: DriverDeps, signal: AbortSignal): Promise<HTMLElement | null> {
+  for (let i = 0; i < SCROLLER_TRIES; i++) {
+    const scroller = deps.page.findScroller();
+    if (scroller) return scroller;
+    if (signal.aborted) return null;
+    await deps.sleep(SCROLLER_RETRY_MS, signal);
+  }
+  return null;
+}
+
 export async function runDriver(
   options: DriverOptions,
   deps: DriverDeps,
@@ -57,8 +72,8 @@ export async function runDriver(
     if (signal.aborted) return "stopped";
     const reason = stopReason(state, options.rule, options.idleRounds);
     if (reason) return reason;
-    const scroller = deps.page.findScroller();
-    if (!scroller) return "noScroller";
+    const scroller = await findScroller(deps, signal);
+    if (!scroller) return signal.aborted ? "stopped" : "noScroller";
     const [lo, hi] = STEP_PX;
     deps.page.loadOlder(scroller, Math.round(lo + (hi - lo) * random()));
     const batch = await deps.waitForBatch(

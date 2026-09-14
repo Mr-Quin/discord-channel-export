@@ -1,10 +1,12 @@
 import { sources } from "../sources";
 
-// Test builds add the local harness origin through WXT_EXTRA_MATCHES.
+declare const __DCE_EXTRA_MATCHES__: string[] | undefined;
+
+/** Match patterns a test build adds for the local harness; empty in normal builds. */
+export function extraMatches(): string[] {
+  return typeof __DCE_EXTRA_MATCHES__ === "undefined" ? [] : __DCE_EXTRA_MATCHES__;
+}
+
 export function contentMatches(): string[] {
-  const extra = String(import.meta.env.WXT_EXTRA_MATCHES ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return [...new Set([...sources.flatMap((s) => s.matches), ...extra])];
+  return [...new Set(sources.flatMap((s) => s.matches))];
 }
