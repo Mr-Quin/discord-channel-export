@@ -58,4 +58,20 @@ describe("Controller run lifecycle", () => {
     expect(c.getSnapshot().running).toBeUndefined();
     expect(c.getSnapshot().lastStop?.reason).toBe("stopped");
   });
+
+  it("drops reached-start evidence on revisit, so a later run still loads new history", async () => {
+    const c = new Controller(source);
+    const started = c as unknown as { sessionStart: Set<string> };
+    await c.setConversation({ source: "discord", id: "c1", url: "u" });
+    started.sessionStart.add("c1"); // this open paginated to the channel start
+    await c.setConversation({ source: "discord", id: "c2", url: "u" });
+    await c.setConversation({ source: "discord", id: "c1", url: "u" }); // revisit: a new session
+    expect(started.sessionStart.has("c1")).toBe(false);
+
+    const run = c.run({ kind: "count", max: 1_000_000 });
+    await vi.advanceTimersByTimeAsync(120000);
+    await run;
+    // Would be "start" (immediate, no scrolling) if the stale seed had carried over.
+    expect(c.getSnapshot().lastStop?.reason).toBe("idle");
+  });
 });

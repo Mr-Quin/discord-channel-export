@@ -168,6 +168,11 @@ export class Controller {
       error: undefined,
     });
     if (!next) return;
+    // Reaching the channel start is evidence only about the pagination session that saw
+    // it. Opening the channel again is a new session that has loaded only the newest page,
+    // so the reached-start seed must be dropped or a later run would stop before filling
+    // any history the client has not paginated to this time.
+    this.sessionStart.delete(next.id);
     await this.refreshStats();
   }
 
