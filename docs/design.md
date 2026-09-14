@@ -115,8 +115,13 @@ The loop is generic; the Discord source supplies `findScroller()` and
 `loadOlder()`. For Discord the list is `[data-list-id="chat-messages"]`, the
 scroller its nearest ancestor whose `scrollHeight` exceeds `clientHeight`,
 and loading older means moving `scrollTop` up by a randomised amount over a
-few animation frames. Each round calls `loadOlder()` and waits for a new
-batch.
+few animation frames. Each round calls `loadOlder()`, lets the animation
+settle, then waits for a batch: a few seconds when the scroller is at the
+top (where the client asks for more), a few hundred milliseconds otherwise,
+so stepping through posts already rendered does not stall. A batch that
+lands between two waits is held for the next one. A scroller that is
+missing for a moment (the client re-rendering) is retried before the run
+gives up.
 
 Stop conditions, checked before every round:
 
@@ -140,9 +145,9 @@ text, and hands it to the offscreen document, which creates a Blob and calls
 `downloads.download`. Service workers cannot create object URLs and data URLs
 choke on large files, which is why the offscreen document exists.
 
-Filename template, default `{channel}-{channelId}-{stamp}.{ext}`, with
-`{channel}`, `{channelId}`, `{guild}`, `{guildId}`, `{stamp}` (UTC, `YYYYMMDDTHHMMSSZ`)
-and `{ext}`. Channel and guild names are sanitised for the filesystem.
+Filename template, default `{name}-{id}-{stamp}.{ext}`, with `{name}`,
+`{id}`, `{group}`, `{groupId}`, `{source}`, `{stamp}` (UTC,
+`YYYYMMDDTHHMMSSZ`) and `{ext}`. Names are sanitised for the filesystem.
 
 Formats:
 
