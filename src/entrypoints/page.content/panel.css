@@ -1,0 +1,138 @@
+:host {
+  all: initial;
+  font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  color: #dbdee1;
+  z-index: 2147483000;
+}
+
+.dce {
+  position: fixed;
+  right: 16px;
+  bottom: 80px;
+  width: 300px;
+  background: #1e1f22;
+  border: 1px solid #3f4147;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  user-select: none;
+}
+
+.dce.collapsed .dce-body {
+  display: none;
+}
+
+.dce-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: grab;
+  border-bottom: 1px solid #3f4147;
+}
+
+.dce-head strong {
+  flex: 1;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dce-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dce-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dce-stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  color: #b5bac1;
+}
+
+.dce-stats b {
+  color: #f2f3f5;
+  font-weight: 600;
+}
+
+.dce button,
+.dce select,
+.dce input {
+  font: inherit;
+  color: inherit;
+  background: #2b2d31;
+  border: 1px solid #3f4147;
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+.dce button {
+  cursor: pointer;
+}
+
+.dce button:hover:not(:disabled) {
+  background: #383a40;
+}
+
+.dce button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dce button.primary {
+  background: #5865f2;
+  border-color: #5865f2;
+  color: #fff;
+}
+
+.dce button.primary:hover:not(:disabled) {
+  background: #4752c4;
+}
+
+.dce button.danger {
+  color: #f23f43;
+}
+
+.dce input[type="number"] {
+  width: 70px;
+}
+
+.dce input[type="date"] {
+  width: 130px;
+}
+
+.dce-note {
+  color: #949ba4;
+  font-size: 12px;
+}
+
+.dce-warn {
+  color: #f0b232;
+}
+
+.dce-error {
+  color: #f23f43;
+}
+
+.dce-section {
+  border-top: 1px solid #3f4147;
+  padding-top: 8px;
+}
+
+.dce-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #949ba4;
+  margin-bottom: 4px;
+}

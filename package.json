@@ -1,0 +1,40 @@
+{
+  "name": "discord-channel-export",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser extension that exports a Discord channel as JSON, HTML or CSV",
+  "license": "MIT",
+  "author": "Mr-Quin",
+  "repository": "https://github.com/Mr-Quin/discord-channel-export",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "build:test": "WXT_EXTRA_MATCHES=http://127.0.0.1/* wxt build --mode test",
+    "zip": "wxt zip",
+    "postinstall": "wxt prepare",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "pnpm build:test && playwright test",
+    "e2e:login": "node e2e/login.mjs",
+    "lint": "tsc --noEmit && biome check",
+    "format": "biome check --write"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@playwright/test": "1.63.0",
+    "@types/chrome": "0.2.9",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@wxt-dev/module-react": "1.2.2",
+    "fake-indexeddb": "6.2.5",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0",
+    "wxt": "0.21.4"
+  },
+  "packageManager": "pnpm@11.4.0"
+}
