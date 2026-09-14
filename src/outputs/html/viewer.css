@@ -255,6 +255,19 @@ blockquote {
   max-width: 520px;
   font-size: 14px;
 }
+.embed.media {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.embed.media.broken,
+.avatar.broken img {
+  display: none;
+}
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+}
 .embed .title {
   font-weight: 600;
 }

@@ -112,13 +112,27 @@ export class Controller {
       reachedStart: short,
       stats: reply.stats,
     };
+    let taken = false;
     for (const w of [...this.waiters]) {
       if (w.conversationId === event.conversationId) {
         this.waiters.delete(w);
         w.resolve(event);
+        taken = true;
       }
     }
+    if (!taken) {
+      const held = this.unseen.get(event.conversationId);
+      this.unseen.set(event.conversationId, {
+        ...event,
+        length: event.length + (held?.length ?? 0),
+        reachedStart: event.reachedStart || (held?.reachedStart ?? false),
+      });
+    }
   }
+
+  // A batch that lands between two waits would otherwise be lost to the driver's
+  // progress count, so it is held until the next wait asks for one.
+  private unseen = new Map<string, BatchEvent>();
 
   async setConversation(next: Conversation | undefined): Promise<void> {
     const prev = this.state.conversation;
@@ -153,6 +167,12 @@ export class Controller {
 
   private waitForBatch = (conversationId: string, timeoutMs: number, signal: AbortSignal) =>
     new Promise<BatchEvent | null>((resolve) => {
+      const held = this.unseen.get(conversationId);
+      if (held) {
+        this.unseen.delete(conversationId);
+        resolve(held);
+        return;
+      }
       const waiter: BatchWaiter = {
         conversationId,
         resolve: (b) => {
@@ -193,6 +213,7 @@ export class Controller {
     if (!c || this.abort) return;
     const abort = new AbortController();
     this.abort = abort;
+    this.unseen.delete(c.id);
     const initial = {
       oldestKey: this.state.stats?.oldest?.sortKey,
       reachedStart: this.sessionStart.has(c.id),

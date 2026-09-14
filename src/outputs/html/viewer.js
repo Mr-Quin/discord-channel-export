@@ -103,12 +103,18 @@
   }
 
   function embedHtml(e) {
+    var img = e.image || e.thumbnail;
+    // A bare link preview of a picture or clip is shown as the media itself, not a card.
+    var bare = !e.title && !e.description && !e.provider?.name;
+    if (bare && e.type === "image" && img?.url)
+      return `<div class="embed media"><a href="${esc(img.url)}" target="_blank" rel="noreferrer"><img src="${esc(img.proxy_url || img.url)}" alt="" loading="lazy"></a></div>`;
+    if (bare && (e.type === "video" || e.type === "gifv") && e.video?.url)
+      return `<div class="embed media"><video src="${esc(e.video.proxy_url || e.video.url)}" controls preload="metadata"></video></div>`;
     var out = '<div class="embed">';
     if (e.provider?.name) out += `<div class="provider">${esc(e.provider.name)}</div>`;
     if (e.title)
       out += `<div class="title">${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noreferrer">${esc(e.title)}</a>` : esc(e.title)}</div>`;
     if (e.description) out += `<div class="desc">${md(e.description)}</div>`;
-    var img = e.image || e.thumbnail;
     if (e.type === "video" && e.video && e.video.url)
       out += `<video src="${esc(e.video.url)}" controls preload="metadata"></video>`;
     else if (img?.url)
@@ -194,6 +200,26 @@
 
   var main = document.querySelector("main");
   main.innerHTML = render(messages);
+
+  // Media points at Discord's CDN and third-party hosts; links expire and hosts block
+  // hotlinking, so anything that fails to load collapses instead of leaving a blank box.
+  main.addEventListener(
+    "error",
+    (e) => {
+      var el = e.target;
+      if (!(el instanceof HTMLImageElement) && !(el instanceof HTMLVideoElement)) return;
+      var box = el.closest(".embed.media, .avatar");
+      if (box) box.classList.add("broken");
+      else if (el.closest(".attachments"))
+        el.replaceWith(
+          Object.assign(document.createElement("span"), {
+            className: "muted",
+            textContent: el.alt || "image unavailable",
+          }),
+        );
+    },
+    true,
+  );
 
   main.addEventListener("click", (e) => {
     var t = e.target.closest(".spoiler");

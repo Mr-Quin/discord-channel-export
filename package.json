@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "e2e": "pnpm build:test && playwright test",
     "e2e:login": "node e2e/login.ts",
+    "e2e:real": "node e2e/real-run.ts",
     "lint": "tsc --noEmit && biome check",
     "format": "biome check --write"
   },

@@ -43,6 +43,8 @@ export const STEP_PX: [number, number] = [1800, 3200];
 // so a missing scroller is retried for a moment before the run gives up.
 const SCROLLER_TRIES = 10;
 const SCROLLER_RETRY_MS = 300;
+const SETTLE_MS = 150;
+const NEAR_TOP_MS = 300;
 
 async function findScroller(deps: DriverDeps, signal: AbortSignal): Promise<HTMLElement | null> {
   for (let i = 0; i < SCROLLER_TRIES; i++) {
@@ -76,11 +78,11 @@ export async function runDriver(
     if (!scroller) return signal.aborted ? "stopped" : "noScroller";
     const [lo, hi] = STEP_PX;
     deps.page.loadOlder(scroller, Math.round(lo + (hi - lo) * random()));
-    const batch = await deps.waitForBatch(
-      options.conversationId,
-      options.batchTimeoutMs ?? 4000,
-      signal,
-    );
+    await deps.sleep(SETTLE_MS, signal);
+    // The client only asks for more once the top is in view. Away from the top a batch
+    // is unlikely, so the wait is short and the next step follows quickly.
+    const wait = deps.page.atTop(scroller) ? (options.batchTimeoutMs ?? 4000) : NEAR_TOP_MS;
+    const batch = await deps.waitForBatch(options.conversationId, wait, signal);
     if (signal.aborted) return "stopped";
     if (batch) {
       state.loaded += batch.length;
